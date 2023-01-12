@@ -24,7 +24,7 @@ def train_model(config):
                      tokenizer_path=config['MODEL']['tokenizer_path'],
                      num_labels=config['MODEL'].getint('num_labels'))
 
-    model.fit(posts=posts, labels=labels, model_name='bert_model_0', verbose=2, val_ratio=0.15, epochs=2, batch_size=8)
+    model.fit(posts=posts, labels=labels, model_name='bert_model_0', verbose=2, val_ratio=0.15, epochs=2, batch_size=1)
 
 
 def load_model(config):
@@ -44,5 +44,5 @@ def load_model(config):
 if __name__ == '__main__':
     conf = ConfigParser()
     conf.read('config.ini')
-    # train_model(conf)
-    load_model(conf)
+    train_model(conf)
+    #load_model(conf)

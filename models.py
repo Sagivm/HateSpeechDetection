@@ -55,7 +55,7 @@ class PseudoLabelingBERT:
             return_tensors='pt'
         )
 
-    def forward(self, ids, masks, batch_size=0, return_embeddings=False):
+    def forward(self, ids, masks, batch_size=0, return_embeddings=True):
         if batch_size == 0:
             with torch.no_grad():
                 # Forward pass
@@ -197,11 +197,11 @@ class PseudoLabelingBERT:
             self.model.eval()
 
             logits, label_ids = self.forward_with_true_labels(train_set, batch_size)
-            curr_train_acc = accuracy_score(y_pred=np.argmax(logits, axis=1), y_true=np.argmax(label_ids, axis=1))
+            curr_train_acc = accuracy_score(y_pred=np.argmax(logits[0], axis=1), y_true=np.argmax(label_ids, axis=1))
             train_accuracy.append(curr_train_acc)
 
             logits, label_ids = self.forward_with_true_labels(val_set, batch_size)
-            curr_val_acc = accuracy_score(y_pred=np.argmax(logits, axis=1), y_true=np.argmax(label_ids, axis=1))
+            curr_val_acc = accuracy_score(y_pred=np.argmax(logits[0], axis=1), y_true=np.argmax(label_ids, axis=1))
             val_accuracy.append(curr_val_acc)
 
             if curr_val_acc > best_val_acc:
