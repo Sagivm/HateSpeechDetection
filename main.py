@@ -2,7 +2,11 @@ from configparser import ConfigParser
 import pandas as pd
 import numpy as np
 from models import PseudoLabelingBERT
-
+from k_means import BestKMeans
+from pseudo_labeler import PseudoLabeler
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
 
 def categorical_to_onehot(labels, values=None):
     if values is None:
@@ -38,11 +42,22 @@ def load_model(config):
     posts = df['text'].values
     # pred = model.predict(X=posts, batch_size=8)
     embeddings = model.embeddings(X=posts, batch_size=8)
-    print(1)
+    return embeddings
 
 
 if __name__ == '__main__':
     conf = ConfigParser()
     conf.read('config.ini')
-    train_model(conf)
-    #load_model(conf)
+    #train_model(conf)
+    embeddings = load_model(conf)
+    post_embeddings = np.mean(embeddings,axis=1)  # Word axis
+
+    number_of_ks = 4
+    best_k_means = BestKMeans(post_embeddings)
+    best_ks = best_k_means.best_n_k(number_of_ks, (2, 20))
+
+    for kmean in best_ks:
+        pl = PseudoLabeler(kmean)
+        pl.read_posts(conf)
+        pl.generate_pseudo_label()
+
