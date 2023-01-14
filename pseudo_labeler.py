@@ -8,7 +8,7 @@ from nltk.stem import PorterStemmer
 
 class PseudoLabeler:
 
-    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1,2), n_pseudo: float = 0.02, use_stemmer: bool = True):
+    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1,3), n_pseudo: float = 0.02, use_stemmer: bool = True):
         self.kmeans_model = kmeans_model
         self.n_gram = n_gram
         self.n_pseudo = n_pseudo
