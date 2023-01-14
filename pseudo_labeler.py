@@ -8,7 +8,7 @@ from nltk.stem import PorterStemmer
 
 class PseudoLabeler:
 
-    def __init__(self, kmeans_model: KMeans, n_gram: tuple = 2, n_pseudo: float = 0.02, use_stemmer: bool = True):
+    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1,2), n_pseudo: float = 0.02, use_stemmer: bool = True):
         self.kmeans_model = kmeans_model
         self.n_gram = n_gram
         self.n_pseudo = n_pseudo
@@ -26,7 +26,7 @@ class PseudoLabeler:
 
         if self.use_stemmer:
             stemmer = PorterStemmer()
-            combined_cluster_list = [stemmer.stem(cluster) for cluster in combined_cluster_list]
+            combined_cluster_list = [stemmer.stem(cluster_post) for cluster_post in combined_cluster_list]
         X, m = tf_idf_matrix(combined_cluster_list, self.n_gram)
         tmp = generate_pseudo_labeling(X, m.get_feature_names_out(), 0.01)
         x=0
