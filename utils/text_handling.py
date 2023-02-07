@@ -3,9 +3,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 def tf_idf_matrix(corpus: list, ngram_range):
-    model = TfidfVectorizer(stop_words='english', ngram_range=ngram_range)
-    X = model.fit_transform(corpus)
-    return X, model
+    tf_idf_model = TfidfVectorizer(stop_words='english', ngram_range=ngram_range)
+    X = tf_idf_model.fit_transform(corpus)
+    return X, tf_idf_model
 
 
 def compute_doc_similarity_matrix(X: np.ndarray):
@@ -48,7 +48,7 @@ def generate_pseudo_labeling(X, terms: list, threshold: float):
     :type X:
     :param terms:
     :type terms:
-    :param threshold: if a number the number of pseudo labels, if float the percentage og pseudo labels to draw
+    :param threshold: if a number the number of pseudo labels, if float the percentage of pseudo labels to draw
     :type threshold:
     :return:
     :rtype:
@@ -59,7 +59,7 @@ def generate_pseudo_labeling(X, terms: list, threshold: float):
     return terms[indeces]
 
 
-def calculate_cluster_variance(X:np.ndarray):
+def calculate_cluster_variance(X: np.ndarray):
     """
     return variance along documents cluster with doc matrix
     :param X:
