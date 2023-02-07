@@ -2,20 +2,19 @@ import os
 import math
 
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, accuracy_score, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 
 class PseudoLabelingBERT:
-    def __init__(self, use_tqdm=True, local_model_path=''):
+    def __init__(self, use_tqdm=True, local_model_dir=''):
         self.tokenizer = None
         self.model_path = None
-        self.local_model_path = local_model_path
+        self.local_model_dir = local_model_dir
         self.num_labels = None
         self.model = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -32,17 +31,14 @@ class PseudoLabelingBERT:
         )
 
     def load_model(self, model_path, tokenizer_path, num_labels, model_name):
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        self.num_labels = num_labels
-        self.model_path = model_path
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            model_path,
-            num_labels=num_labels,
-            ignore_mismatched_sizes=True
-        )
-        curr_model_path = os.path.join(self.local_model_path, 'trained_models', f"{model_name}.pt")
-        self.model.load_state_dict(torch.load(curr_model_path))
-        print(f"Model loaded from {curr_model_path}")
+        self.init_model(model_path, tokenizer_path, num_labels)
+        curr_model_path = os.path.join(self.local_model_dir, 'trained_models', f"{model_name}.pt")
+        if not os.path.exists(curr_model_path):
+            print(f"Model not found, saving base model in {curr_model_path}")
+            self.save_model(model_name)
+        else:
+            self.model.load_state_dict(torch.load(curr_model_path))
+            print(f"Model loaded from {curr_model_path}")
         self.model.cuda()
 
     def preprocess_post(self, post):
@@ -55,7 +51,7 @@ class PseudoLabelingBERT:
             return_tensors='pt'
         )
 
-    def forward(self, ids, masks, batch_size=0, return_embeddings=True):
+    def forward(self, ids, masks, batch_size=0, return_embeddings=False):
         if batch_size == 0:
             with torch.no_grad():
                 # Forward pass
@@ -71,13 +67,12 @@ class PseudoLabelingBERT:
             total_logits = []
             total_embs = []
             with torch.no_grad():
-                for b_input_ids, b_input_mask in tqdm_iter(iter_batches(ids, masks, batch_size),
+                for b_input_ids, b_input_mask in tqdm(iter_batches(ids, masks, batch_size),
                                                            total=math.ceil(ids.shape[0] / batch_size),
-                                                           desc='Eval', use_tqdm=self.use_tqdm):
+                                                           desc='Eval', disable=(not self.use_tqdm)):
                     eval_output = self.model(b_input_ids,
                                              token_type_ids=None,
                                              attention_mask=b_input_mask,
-                                             return_dict=return_embeddings,
                                              output_hidden_states=return_embeddings)
 
                     logits = eval_output.logits.detach().cpu().numpy()
@@ -87,7 +82,8 @@ class PseudoLabelingBERT:
                         total_embs.append(curr_emb)
 
             logits = np.concatenate(total_logits)
-            embs = np.concatenate(total_embs)
+            if return_embeddings:
+                embs = np.concatenate(total_embs)
 
         if not return_embeddings:
             return logits
@@ -101,9 +97,9 @@ class PseudoLabelingBERT:
         return logits, labels
 
     def fit(self, model_name, posts, labels, val_ratio=0.2, epochs=7, batch_size=8, plot_confusion_matrix=False,
-            verbose=0):
-        if not os.path.exists(os.path.join(self.local_model_path, 'temp_models')):
-            os.makedirs(os.path.join(self.local_model_path, 'temp_models'))
+            verbose=0, lr=5e-5):
+        if not os.path.exists(os.path.join(self.local_model_dir, 'temp_models')):
+            os.makedirs(os.path.join(self.local_model_dir, 'temp_models'))
 
         token_id = []
         attention_masks = []
@@ -149,7 +145,7 @@ class PseudoLabelingBERT:
 
         # Recommended learning rates (Adam): 5e-5, 3e-5, 2e-5. See: https://arxiv.org/pdf/1810.04805.pdf
         optimizer = torch.optim.AdamW(self.model.parameters(),
-                                      lr=5e-5,
+                                      lr=lr,
                                       eps=1e-08
                                       )
 
@@ -160,10 +156,11 @@ class PseudoLabelingBERT:
 
         train_accuracy = []
         val_accuracy = []
+        train_loss = []
         best_val_acc = 0
         best_epoch = 0
 
-        for epoch in tqdm(range(epochs), desc='BERT training epochs'):
+        for epoch in tqdm(range(epochs), desc='BERT training epochs', disable=False):
             # ========== Training ==========
 
             # Set model to training mode
@@ -173,8 +170,8 @@ class PseudoLabelingBERT:
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
 
-            for step, batch in tqdm_iter(enumerate(train_dataloader), total=len(train_dataloader), desc='Train',
-                                         use_tqdm=self.use_tqdm):
+            for step, batch in tqdm(enumerate(train_dataloader), total=len(train_dataloader), desc='Train',
+                                         disable=(not self.use_tqdm)):
                 batch = tuple(t.to(self.device) for t in batch)
                 b_input_ids, b_input_mask, b_labels = batch
                 optimizer.zero_grad()
@@ -190,47 +187,41 @@ class PseudoLabelingBERT:
                 tr_loss += train_output.loss.item()
                 nb_tr_examples += b_input_ids.size(0)
                 nb_tr_steps += 1
-
+            train_loss.append(tr_loss)
             # ========== Validation ==========
 
             # Set model to evaluation mode
             self.model.eval()
 
-            logits, label_ids = self.forward_with_true_labels(train_set, batch_size)
-            curr_train_acc = accuracy_score(y_pred=np.argmax(logits[0], axis=1), y_true=np.argmax(label_ids, axis=1))
+            t_logits, t_label_ids = self.forward_with_true_labels(train_set, batch_size)
+            curr_train_acc = accuracy_score(y_pred=np.argmax(t_logits, axis=1), y_true=np.argmax(t_label_ids, axis=1))
             train_accuracy.append(curr_train_acc)
 
-            logits, label_ids = self.forward_with_true_labels(val_set, batch_size)
-            curr_val_acc = accuracy_score(y_pred=np.argmax(logits[0], axis=1), y_true=np.argmax(label_ids, axis=1))
+            v_logits, v_label_ids = self.forward_with_true_labels(val_set, batch_size)
+            curr_val_acc = accuracy_score(y_pred=np.argmax(v_logits, axis=1), y_true=np.argmax(v_label_ids, axis=1))
             val_accuracy.append(curr_val_acc)
 
             if curr_val_acc > best_val_acc:
-                torch.save(self.model.state_dict(), os.path.join(self.local_model_path, 'temp_models', f"{model_name}.tmp"))
+                torch.save(self.model.state_dict(), os.path.join(self.local_model_dir, 'temp_models', f"{model_name}.tmp"))
                 best_epoch = epoch
                 best_val_acc = curr_val_acc
 
             if verbose > 1:
-                print(f"Epoch {epoch}: Train acc - {curr_train_acc}, Validation acc - {curr_val_acc}")
-
-        if plot_confusion_matrix:
-            conf_mat = confusion_matrix(y_pred=np.argmax(logits, axis=1), y_true=np.argmax(label_ids, axis=1))
-            disp = ConfusionMatrixDisplay(confusion_matrix=conf_mat,
-                                          display_labels=['Pro-Ukraine', 'Neutral', 'Pro-Russia'])
-            disp.plot()
-            plt.title('Others - test set')
-            plt.show()
+                print(f"Epoch {epoch}: Train acc - {curr_train_acc}, Validation acc - {curr_val_acc}, Loss - {tr_loss}\n")
+                print(f"Train: {confusion_matrix(y_pred=np.argmax(t_logits, axis=1), y_true=np.argmax(t_label_ids, axis=1))}\n"
+                      f"Val: {confusion_matrix(y_pred=np.argmax(v_logits, axis=1), y_true=np.argmax(v_label_ids, axis=1))}")
 
         if verbose > 0:
             print(f"Best epoch - {best_epoch}: Validation acc - {best_val_acc}")
-
-        self.model.load_state_dict(torch.load(os.path.join(self.local_model_path, 'temp_models', f"{model_name}.tmp")))
+            print(f"Train losses: {train_loss}")
+        self.model.load_state_dict(torch.load(os.path.join(self.local_model_dir, 'temp_models', f"{model_name}.tmp")))
         self.save_model(model_name)
 
     def save_model(self, model_name):
-        if not os.path.exists(os.path.join(self.local_model_path, 'trained_models')):
-            os.makedirs(os.path.join(self.local_model_path, 'trained_models'))
+        if not os.path.exists(os.path.join(self.local_model_dir, 'trained_models')):
+            os.makedirs(os.path.join(self.local_model_dir, 'trained_models'))
 
-        curr_model_path = os.path.join(self.local_model_path, 'trained_models', f"{model_name}.pt")
+        curr_model_path = os.path.join(self.local_model_dir, 'trained_models', f"{model_name}.pt")
         torch.save(self.model.state_dict(), curr_model_path)
 
         print(f"Model saved at {curr_model_path}")
@@ -273,13 +264,6 @@ class PseudoLabelingBERT:
 
         _, embs = self.forward(input_ids, input_mask, batch_size=batch_size, return_embeddings=True)
         return embs
-
-
-def tqdm_iter(iter, desc, total, use_tqdm=True):
-    if use_tqdm:
-        return tqdm(iter, total=total, desc=desc)
-    else:
-        return iter
 
 
 def iter_batches(input_ids, input_mask, batch_size):
