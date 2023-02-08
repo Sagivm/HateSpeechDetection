@@ -1,4 +1,4 @@
-Uses configuration file located in `config.ini`.\
+Uses configuration file located in `config.ini`.
 ### main.py - Model Training and Embeddings Extraction
 **train_model()** - \
 Training the model to classify the posts into classes based on their target community. 
