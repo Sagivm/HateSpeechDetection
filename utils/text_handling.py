@@ -57,7 +57,7 @@ def generate_pseudo_labeling(X, terms: list, threshold: float):
     """
     if isinstance(threshold, float):
         threshold = threshold * len(terms)+1
-    indeces = np.argsort(X.toarray())[::-1][:, :int(threshold)]
+    indeces = np.argsort(X.toarray())[:, ::-1][:, :int(threshold)]
     weights = np.sort(X.toarray())[:, ::-1][:, :int(threshold)]
     return terms[indeces], weights
 
@@ -91,5 +91,5 @@ def compute_affetcion(corpus: str):
 def extract_top_score(affections):
     clusters = list()
     for affection in affections:
-        clusters.append(sorted([(value["score"],index) for index,value in affection.items()],reverse=True)[0][1])
+        clusters.append(sorted([(value["score"],index) for index,value in affection.items()],reverse=True)[0])
     return clusters

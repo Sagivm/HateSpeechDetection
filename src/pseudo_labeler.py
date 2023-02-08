@@ -13,7 +13,7 @@ import json
 
 class PseudoLabeler:
 
-    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1, 2), n_pseudo: float = 0.02, use_stemmer: bool = False):
+    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1, 1), n_pseudo: float = 0.02, use_stemmer: bool = False):
         self.kmeans_model = kmeans_model
         self.n_gram = n_gram
         self.n_pseudo = n_pseudo
@@ -39,10 +39,10 @@ class PseudoLabeler:
 
         if self.use_stemmer:
             stemmer = PorterStemmer()
-            combined_cluster_list = [stemmer.stem(cluster_post) for cluster_post in combined_cluster_list]
+            combined_cluster_list = [self.stem(cluster_post) for cluster_post in combined_cluster_list]
 
-        X, tf_idf_model = tf_idf_matrix(combined_cluster_list, (1, 1))
-        keywords_per_cluster, weights = generate_pseudo_labeling(X, tf_idf_model.get_feature_names_out(), 200)  # 0.01)
+        X, tf_idf_model = tf_idf_matrix(combined_cluster_list, self.n_gram)
+        keywords_per_cluster, weights = generate_pseudo_labeling(X, tf_idf_model.get_feature_names_out(), 200)
         clusters_dict = self.to_clusters_dicts(keywords_per_cluster, weights)
         new_clusters_dict = self.to_unique_dicts(clusters_dict)
         affections = [compute_affetcion(corpus) for corpus in combined_cluster_list]
