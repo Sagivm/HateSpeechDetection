@@ -70,6 +70,7 @@ class ClassifyEmbedBERT:
                 for b_input_ids, b_input_mask in tqdm(iter_batches(ids, masks, batch_size),
                                                       total=math.ceil(ids.shape[0] / batch_size),
                                                       desc='Eval', disable=(not self.use_tqdm)):
+
                     eval_output = self.model(b_input_ids,
                                              token_type_ids=None,
                                              attention_mask=b_input_mask,
@@ -175,6 +176,7 @@ class ClassifyEmbedBERT:
                 train_output.loss.backward()
                 optimizer.step()
                 # Update tracking variables
+
                 batch_loss = train_output.loss.item()
                 tr_loss += batch_loss
                 train_summary['losses'].append(batch_loss)
@@ -233,6 +235,7 @@ class ClassifyEmbedBERT:
 
         token_id = torch.cat(token_id, dim=0)
         attention_masks = torch.cat(attention_masks, dim=0)
+
         if labels is not None:
             labels = torch.tensor(labels)
             return token_id, attention_masks, labels
@@ -260,7 +263,6 @@ class ClassifyEmbedBERT:
         token_id, attention_masks = self.preprocess_data_set(X)
         X = TensorDataset(token_id,
                           attention_masks)
-
         input_ids, input_mask = [t.to(self.device) for t in X.tensors]
 
         logits = self.forward(input_ids, input_mask, batch_size=batch_size)
@@ -275,6 +277,7 @@ class ClassifyEmbedBERT:
 
         _, embs = self.forward(input_ids, input_mask, batch_size=batch_size, return_embeddings=True)
         return embs
+
 
 
 def iter_batches(input_ids, input_mask, batch_size: int):

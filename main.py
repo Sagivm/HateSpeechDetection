@@ -35,6 +35,7 @@ def train_model(config: dict):
     test_labels = categorical_to_onehot(test_labels, n_labels=config['MODEL'].getint('num_labels'))
 
     model = ClassifyEmbedBERT(use_tqdm=False, local_model_dir=config['MODEL']['local_models_dir'])
+
     model.init_model(model_path=config['MODEL']['base_model_path'],
                      tokenizer_path=config['MODEL']['tokenizer_path'],
                      num_labels=config['MODEL'].getint('num_labels'))
@@ -46,11 +47,13 @@ def train_model(config: dict):
 
 def load_model(config: dict):
     model = ClassifyEmbedBERT(local_model_dir=config['MODEL']['local_models_dir'])
+
     model.load_model(model_path=config['MODEL']['base_model_path'],
                      tokenizer_path=config['MODEL']['tokenizer_path'],
                      num_labels=config['MODEL'].getint('num_labels'),
                      model_name=config['MODEL']['trained_model_name'])
     return model
+
 
 
 def extract_embeddings(model: ClassifyEmbedBERT, config: dict):
@@ -78,3 +81,4 @@ if __name__ == '__main__':
     post_embeddings = extract_embeddings(model, conf)
     with open('output/train_summaries/t1.json', 'w+') as f:
         json.dump(train_summary, f)
+        

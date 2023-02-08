@@ -3,6 +3,7 @@ from sklearn.cluster import KMeans
 from utils.text_handling import *
 from nltk.stem import PorterStemmer
 import functools
+
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from copy import deepcopy
@@ -37,6 +38,7 @@ class PseudoLabeler:
         if self.use_stemmer:
             stemmer = PorterStemmer()
             combined_cluster_list = [stemmer.stem(cluster_post) for cluster_post in combined_cluster_list]
+
         X, tf_idf_model = tf_idf_matrix(combined_cluster_list, (1, 1))
         keywords_per_cluster, weights = generate_pseudo_labeling(X, tf_idf_model.get_feature_names_out(), 0.1)  # 0.01)
         clusters_dict = self.to_clusters_dicts(keywords_per_cluster, weights)
@@ -57,8 +59,6 @@ class PseudoLabeler:
         for k in kb:
             if k not in labels_to_leave:
                 del kb[k]
-
-
 
     @staticmethod
     def to_unique_sets(kws):

@@ -33,6 +33,8 @@ if __name__ == '__main__':
 
     # print("\nWith training:")
     embeddings = np.load('output/embeddings/trained_embeddings.npy')
+
     pseudo_labeler(embeddings, 4, conf)
+
     # kmeans_find_best_k(embeddings)
     # print(1)
