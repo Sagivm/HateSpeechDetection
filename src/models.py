@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 
 
 class ClassifyEmbedBERT:
@@ -31,6 +31,13 @@ class ClassifyEmbedBERT:
         )
 
     def load_model(self, model_path: str, tokenizer_path: str, num_labels: int, model_name: str):
+        """
+        Load model and tokenizer from a given path. If not exists initiate new model.
+        :param model_path:
+        :param tokenizer_path:
+        :param num_labels:
+        :param model_name:
+        """
         self.init_model(model_path, tokenizer_path, num_labels)
         curr_model_path = os.path.join(self.local_model_dir, 'trained_models', f"{model_name}.pt")
         if not os.path.exists(curr_model_path):
@@ -42,6 +49,11 @@ class ClassifyEmbedBERT:
         self.model.cuda()
 
     def preprocess_post(self, post: str):
+        """
+        Tokenize a post using initiated tokenizer
+        :param post:
+        :return: Tokenized post
+        """
         return self.tokenizer.encode_plus(
             post,
             add_special_tokens=True,
@@ -52,6 +64,15 @@ class ClassifyEmbedBERT:
         )
 
     def forward(self, ids: torch.Tensor, masks: torch.Tensor, batch_size: int = 0, return_embeddings: bool = False):
+        """
+        Preform a forward pass over the model, given the token-ids and masks
+        :param ids: Token IDs
+        :param masks: Masked vector to pass the model
+        :param batch_size: Batch size to use to reduce memory usage
+        :param return_embeddings: Whether to return embedding vectors along with the model output, used to generate
+                                  posts embeddings
+        :return: model output and possibly embeddings
+        """
         if batch_size == 0:
             with torch.no_grad():
                 # Forward pass
@@ -92,14 +113,35 @@ class ClassifyEmbedBERT:
             return logits, embs
 
     def forward_with_true_labels(self, X: TensorDataset, batch_size: int = 0):
+        """
+        Run forward pass over the model, return true-labels of the given dataset
+        :param X:
+        :param batch_size:
+        :return:
+        """
         input_ids, input_mask, labels = [t.to(self.device) for t in X.tensors]
         labels = labels.to('cpu').numpy()
         logits = self.forward(input_ids, input_mask, batch_size=batch_size)
         return logits, labels
 
     def fit(self, model_name: str, posts: np.ndarray, labels: np.ndarray, test_posts: np.ndarray,
-            test_labels: np.ndarray, val_ratio: float = 0.2, epochs: int = 7, batch_size: int = 8, verbose: int = 0,
+            test_labels: np.ndarray, val_ratio: float = 0.15, epochs: int = 7, batch_size: int = 8, verbose: int = 0,
             lr: float = 5e-5):
+        """
+        Train the model over the given train dataset, with the given parameters.
+        Keep results of the training and testing sets along the training process.
+        :param model_name:
+        :param posts:
+        :param labels:
+        :param test_posts:
+        :param test_labels:
+        :param val_ratio:
+        :param epochs:
+        :param batch_size:
+        :param verbose:
+        :param lr:
+        :return: A summary of statistics and metrics from the training process.
+        """
         if not os.path.exists(os.path.join(self.local_model_dir, 'temp_models')):
             os.makedirs(os.path.join(self.local_model_dir, 'temp_models'))
         train_summary = {'losses': []}
@@ -115,7 +157,7 @@ class ClassifyEmbedBERT:
             stratify=labels)
 
         print(
-            f"BERT - Train set of size - {train_idx.shape[0]:,}, validation - {val_idx.shape[0]:,}, validation - {test_token_id.shape[0]:,}")
+            f"BERT - Train set of size - {train_idx.shape[0]:,}, validation - {val_idx.shape[0]:,}, test, - {test_token_id.shape[0]:,}")
         # Train and validation sets
         train_set = TensorDataset(token_id[train_idx],
                                   attention_masks[train_idx],
@@ -149,6 +191,10 @@ class ClassifyEmbedBERT:
         train_accuracy = []
         val_accuracy = []
         test_accuracy = []
+        train_f1 = []
+        val_f1 = []
+        test_f1 = []
+
         train_loss = []
         best_val_acc = 0
         best_epoch = 0
@@ -187,14 +233,17 @@ class ClassifyEmbedBERT:
             # Set model to evaluation mode
             self.model.eval()
 
-            curr_train_acc, train_conf_matrix = self.get_metrics(train_set, batch_size)
+            curr_train_acc, train_conf_matrix, curr_train_f1 = self.get_metrics(train_set, batch_size)
             train_accuracy.append(curr_train_acc)
+            train_f1.append(curr_train_f1)
 
-            curr_val_acc, val_conf_matrix = self.get_metrics(val_set, batch_size)
+            curr_val_acc, val_conf_matrix, curr_val_f1 = self.get_metrics(val_set, batch_size)
             val_accuracy.append(curr_val_acc)
+            val_f1.append(curr_val_f1)
 
-            curr_test_acc, test_conf_matrix = self.get_metrics(test_set, batch_size)
+            curr_test_acc, test_conf_matrix, curr_test_f1 = self.get_metrics(test_set, batch_size)
             test_accuracy.append(curr_test_acc)
+            test_f1.append(curr_test_f1)
 
             if curr_val_acc > best_val_acc:
                 torch.save(self.model.state_dict(),
@@ -207,8 +256,8 @@ class ClassifyEmbedBERT:
 
             if verbose > 1:
                 print(
-                    f"Epoch {epoch}: Train acc - {curr_train_acc}, Validation acc - {curr_val_acc}, Test acc - {curr_test_acc}, Loss - {tr_loss}\n")
-                print(
+                    f"Epoch {epoch}: Train acc - {curr_train_acc}, Validation acc - {curr_val_acc}, Test acc - {curr_test_acc}, Loss - {tr_loss}\n"
+                    f"Epoch {epoch}: Train f1 - {curr_train_f1}, Validation f1 - {curr_val_f1}, Test f1 - {curr_test_f1}\n"
                     f"Train: {train_conf_matrix}\n"
                     f"Val: {val_conf_matrix}\n"
                     f"Test: {test_conf_matrix}\n")
@@ -223,9 +272,19 @@ class ClassifyEmbedBERT:
         train_summary['val_accuracy_scores'] = val_accuracy
         train_summary['test_accuracy_scores'] = test_accuracy
 
+        train_summary['train_f1_scores'] = train_f1
+        train_summary['val_f1_scores'] = val_f1
+        train_summary['test_f1_scores'] = test_f1
+
         return train_summary
 
     def preprocess_data_set(self, posts, labels=None):
+        """
+        Process posts into tokenized vectors, create attentions masks.
+        :param posts:
+        :param labels:
+        :return:
+        """
         token_id = []
         attention_masks = []
         for post in posts:
@@ -243,14 +302,27 @@ class ClassifyEmbedBERT:
             return token_id, attention_masks
 
     def get_metrics(self, data_set, batch_size):
+        """
+        Calculate accuracy, Mean-F1 score and confusion matrix of the given dataset, with the trained model.
+        :param data_set:
+        :param batch_size:
+        :return:
+        """
         logits, label_ids = self.forward_with_true_labels(data_set, batch_size)
         true_labels, pred_labels = np.argmax(logits, axis=1), np.argmax(label_ids, axis=1)
 
         curr_acc = accuracy_score(y_pred=pred_labels, y_true=true_labels)
         conf_matrix = confusion_matrix(y_pred=pred_labels, y_true=true_labels)
-        return curr_acc, conf_matrix
+        curr_f1 = f1_score(y_pred=pred_labels, y_true=true_labels, average='macro')
+
+        return curr_acc, conf_matrix, curr_f1
 
     def save_model(self, model_name: str):
+        """
+        Save model current state locally.
+        :param model_name:
+        :return:
+        """
         if not os.path.exists(os.path.join(self.local_model_dir, 'trained_models')):
             os.makedirs(os.path.join(self.local_model_dir, 'trained_models'))
 
@@ -260,6 +332,12 @@ class ClassifyEmbedBERT:
         print(f"Model saved at {curr_model_path}")
 
     def predict(self, X: np.ndarray, batch_size=0):
+        """
+        Over the given dataset X, return classify and return labels.
+        :param X:
+        :param batch_size:
+        :return:
+        """
         token_id, attention_masks = self.preprocess_data_set(X)
         X = TensorDataset(token_id,
                           attention_masks)
@@ -269,6 +347,12 @@ class ClassifyEmbedBERT:
         return np.argmax(logits, axis=1)
 
     def embeddings(self, X: np.ndarray, batch_size=0):
+        """
+        Over the given dataset X, calculate embedding vectors from model
+        :param X:
+        :param batch_size:
+        :return:
+        """
         token_id, attention_masks = self.preprocess_data_set(X)
 
         X = TensorDataset(token_id,
@@ -277,7 +361,6 @@ class ClassifyEmbedBERT:
 
         _, embs = self.forward(input_ids, input_mask, batch_size=batch_size, return_embeddings=True)
         return embs
-
 
 
 def iter_batches(input_ids, input_mask, batch_size: int):

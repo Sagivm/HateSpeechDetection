@@ -12,6 +12,11 @@ warnings.simplefilter(action='ignore', category=UserWarning)
 
 
 def categorical_to_onehot(labels: np.ndarray, n_labels=None):
+    """
+    :param labels: 1-D Array of labels
+    :param n_labels: Number of different labels
+    :return: A 2-D array of one-hot encoded vectors align with 'labels'
+    """
     if n_labels is None:
         values = np.unique(labels)
     else:
@@ -24,6 +29,12 @@ def categorical_to_onehot(labels: np.ndarray, n_labels=None):
 
 
 def train_model(config: dict):
+    """
+    Train the model over the datasets given in config
+    :param config:
+    :return: model - the trained model
+             train_summary - statistics and score from the training process
+    """
     df = pd.read_csv(config['DATA']['train_labeled_data_path'])
     posts = df['text'].values
     labels = df['label'].values
@@ -41,11 +52,16 @@ def train_model(config: dict):
                      num_labels=config['MODEL'].getint('num_labels'))
 
     train_summary = model.fit(posts=posts, labels=labels, test_posts=test_posts, test_labels=test_labels, model_name=config['MODEL']['trained_model_name'],
-                              verbose=2, val_ratio=0.15, epochs=15, batch_size=8, lr=5e-05)
+                              verbose=2, val_ratio=0.15, epochs=10, batch_size=8, lr=5e-05)
     return model, train_summary
 
 
 def load_model(config: dict):
+    """
+    Load a model from path in config
+    :param config:
+    :return: model - the trained model
+    """
     model = ClassifyEmbedBERT(local_model_dir=config['MODEL']['local_models_dir'])
 
     model.load_model(model_path=config['MODEL']['base_model_path'],
@@ -55,8 +71,12 @@ def load_model(config: dict):
     return model
 
 
-
 def extract_embeddings(model: ClassifyEmbedBERT, config: dict):
+    """
+    :param model: Model to use to extract embeddings from
+    :param config: configuration dictionary
+    :return: post_embeddings - embeddings of each post
+    """
     df = pd.read_csv(config['DATA']['posts_to_embed'])
     posts = df['text']
     tokens_embeddings = model.embeddings(posts, batch_size=8)
