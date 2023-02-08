@@ -56,7 +56,8 @@ def generate_pseudo_labeling(X, terms: list, threshold: float):
     if isinstance(threshold, float):
         threshold = threshold * len(terms)+1
     indeces = np.argsort(X.toarray())[::-1][:, :int(threshold)]
-    return terms[indeces]
+    weights = np.sort(X.toarray())[:, ::-1][:, :int(threshold)]
+    return terms[indeces], weights
 
 
 def calculate_cluster_variance(X: np.ndarray):

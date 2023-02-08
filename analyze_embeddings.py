@@ -18,7 +18,9 @@ def pseudo_labeler(embeddings, k, config):
 
     pl = PseudoLabeler(kmeans)
     pl.read_posts(config)
-    pl.generate_pseudo_label()
+    clusters_posts = pl.pseudo_labeling()
+    clusters_dict = pl.generate_cluster_common_unique_words_dict()
+    pl.further_analyze(clusters_dict, save_lists_path='output/words_per_cluster.json')
 
 
 if __name__ == '__main__':
@@ -31,6 +33,8 @@ if __name__ == '__main__':
 
     # print("\nWith training:")
     embeddings = np.load('output/embeddings/trained_embeddings.npy')
-    pseudo_labeler(embeddings, 5, conf)
+
+    pseudo_labeler(embeddings, 4, conf)
+
     # kmeans_find_best_k(embeddings)
     # print(1)
