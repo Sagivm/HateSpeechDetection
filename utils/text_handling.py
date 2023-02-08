@@ -86,3 +86,10 @@ def compute_affetcion(corpus: str):
                 "score": sum(map(lambda x: corpus.count(x), words))/total_words
             }
     return target_community_score
+
+
+def extract_top_score(affections):
+    clusters = list()
+    for affection in affections:
+        clusters.append(sorted([(value["score"],index) for index,value in affection.items()],reverse=True)[0][1])
+    return clusters
