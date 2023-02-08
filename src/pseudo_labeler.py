@@ -3,6 +3,7 @@ from sklearn.cluster import KMeans
 from utils.text_handling import *
 from nltk.stem import PorterStemmer
 import functools
+from nltk.tokenize import sent_tokenize, word_tokenize
 
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -11,7 +12,8 @@ import json
 
 
 class PseudoLabeler:
-    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1, 3), n_pseudo: float = 0.02, use_stemmer: bool = True):
+
+    def __init__(self, kmeans_model: KMeans, n_gram: tuple = (1, 3), n_pseudo: float = 0.02, use_stemmer: bool = False):
         self.kmeans_model = kmeans_model
         self.n_gram = n_gram
         self.n_pseudo = n_pseudo
@@ -97,3 +99,9 @@ class PseudoLabeler:
         plt.imshow(wordcloud, interpolation="bilinear")
         plt.axis('off')
         plt.show()
+
+    def stem(self, doc:str):
+        tokenized_sentence = []
+        for word in doc.split(' '):
+            tokenized_sentence.append(PorterStemmer().stem(word))
+        return " ".join(tokenized_sentence)

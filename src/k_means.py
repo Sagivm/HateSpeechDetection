@@ -1,3 +1,4 @@
+import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
@@ -19,9 +20,9 @@ class BestKMeans:
             scores.append(silhouette_score(self.X, model.labels_))
             print(f"KMeans {k},Score - {silhouette_score(self.X, model.labels_)}")
 
-        #  Get best n score indexes
-        # df = pd.DataFrame(scores, columns=["kmeans score"])
-        # df.to_csv('kmeans_scores.csv', index=False)
+        #Get best n score indexes
+        df = pd.DataFrame(scores, columns=["kmeans score"])
+        df.to_csv('kmeans_scores-trained.csv', index=False)
 
         best_k_score = sorted(range(len(scores)), key=lambda i: scores[i],reverse=True)[:n]
         return [self.fit(k+k_range[0]) for k in best_k_score]

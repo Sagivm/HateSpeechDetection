@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -69,3 +71,18 @@ def calculate_cluster_variance(X: np.ndarray):
     :rtype:
     """
     return X.var(axis=0)
+
+
+def compute_affetcion(corpus: str):
+    # Read json
+    data = json.load(open("utils/hate_words.json"))
+    target_community_score = dict()
+    total_words = sum([len(x) for x in list(data.values())])
+    for community, words in data.items():
+        if sum(map(lambda x: corpus.count(x), words)) != 0:
+            target_community_score[community] = {
+                "words": list(filter(lambda x: x in corpus, words)),
+                "counts": sum(map(lambda x: corpus.count(x), words)),
+                "score": sum(map(lambda x: corpus.count(x), words))/total_words
+            }
+    return target_community_score

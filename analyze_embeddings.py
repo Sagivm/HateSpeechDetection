@@ -3,6 +3,9 @@ import numpy as np
 from sklearn.cluster import KMeans
 from src.k_means import BestKMeans
 from src.pseudo_labeler import PseudoLabeler
+import warnings
+
+warnings.simplefilter("ignore", FutureWarning)
 
 
 def kmeans_find_best_k(embeddings):
@@ -33,8 +36,7 @@ if __name__ == '__main__':
 
     # print("\nWith training:")
     embeddings = np.load('output/embeddings/trained_embeddings.npy')
-
-    pseudo_labeler(embeddings, 4, conf)
-
+    #kmeans_find_best_k(embeddings)
+    pseudo_labeler(embeddings, 5, conf)
     # kmeans_find_best_k(embeddings)
     # print(1)
